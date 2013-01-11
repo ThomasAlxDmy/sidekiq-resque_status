@@ -1,4 +1,3 @@
-require 'resque-job-stats'
 require 'sidekiq'
 require 'sidekiq-status'
 require 'sidekiq-resque_status/version'
@@ -105,10 +104,11 @@ module Sidekiq
                           :args => args,
                           :jid => msg['jid']
                         }
-
+      # Push the failed information into redis
       redis.rpush('failed', MultiJson.dump(failed_message))
 
-      increment_stat("stats:jobs:#{worker.class.name}:enqueued", now)  
+      # Increment failed statistics for job Stats 
+      increment_stat("stats:jobs:#{worker.class.name}:failed", Time.now)  
       increment_expire_key("stat:failed")
     end
 

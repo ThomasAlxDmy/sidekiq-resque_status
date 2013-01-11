@@ -4,43 +4,12 @@ require 'minitest/pride'
 require 'minitest/autorun'
 
 require 'sidekiq'
-require 'sidekiq/util'
+require 'sidekiq/fetch'
 require 'sidekiq/redis_connection'
 require 'sidekiq/processor' 
 
 
 REDIS = Sidekiq::RedisConnection.create(:url => "redis://localhost/15", :namespace => 'test')
-
-module Sidekiq
-  class Processor
-    include Sidekiq::Util
-
-    def constantize(camel_cased_word)
-      names = camel_cased_word.split('::')
-      names.shift if names.empty? || names.first.empty?
-
-      constant = Object
-      names.each do |name|
-        constant = constant.const_defined?(name) ? constant.const_get(name) : constant.const_missing(name)
-      end
-      constant
-    end
-
-    def process(msg, queue)
-      klass = constantize(msg['class'])
-      worker = klass.new
-
-      defer do
-        stats(worker, msg, queue) do
-          Sidekiq.server_middleware.invoke(worker, msg, queue) do
-            worker.perform(*msg['args'])
-          end
-        end
-      end
-      @boss.processor_done!(current_actor)
-    end
-  end
-end
 
 class TestMiddleware < MiniTest::Unit::TestCase
   describe 'middleware chain' do
@@ -52,13 +21,15 @@ class TestMiddleware < MiniTest::Unit::TestCase
     end
 
     let!(:redis) { Sidekiq.redis { |conn| conn } }
-    let!(:job_id) { '0987654321' }
+    let!(:job_id) { '987654321' }
 
     def process_job(msg)
-      boss = MiniTest::Mock.new
-      processor = Sidekiq::Processor.new(boss)
-      boss.expect(:processor_done!, nil, [processor])
-      processor.process(msg, 'default')
+     boss = MiniTest::Mock.new
+     processor = Sidekiq::Processor.new(boss)
+     actor = MiniTest::Mock.new
+     actor.expect(:processor_done, nil, [processor])
+     boss.expect(:async, actor, [])
+     processor.process(Sidekiq::BasicFetch::UnitOfWork.new('queue:default', msg))
     end
 
     Sidekiq.server_middleware do |chain|
@@ -69,7 +40,7 @@ class TestMiddleware < MiniTest::Unit::TestCase
 
     describe "Processing a valid job" do
       it "should add completed status information using jid" do
-        msg = { 'class' => SleepingJob.name, 'args' => nil, 'jid' => job_id }
+        msg = '{ "class": "' + SleepingJob.name + '", "args": [null], "jid": "' + job_id + '" }'
         process_job(msg)
 
         status = redis.get("status:#{job_id}")
@@ -84,7 +55,7 @@ class TestMiddleware < MiniTest::Unit::TestCase
     end
 
     describe "Processing a failing job" do
-      let!(:msg) { { 'class' => FailingJob.name, 'args' => 0, 'jid' => job_id }} 
+      let!(:msg) { '{ "class": "' + FailingJob.name + '", "args": [0], "jid": "' + job_id + '" }'} 
 
       it "should update job status to failed status" do
         process_job(msg)
@@ -108,11 +79,11 @@ class TestMiddleware < MiniTest::Unit::TestCase
         detailed_status['failed_at'].should == Time.now.rfc2822
         detailed_status['class'].should == FailingJob.name
         detailed_status['jid'].should == job_id
-        detailed_status['args'].should == 0
+        detailed_status['args'].should == [0]
         detailed_status['exception'].should == StandardError.name
         detailed_status['error'].should == "This job is supposed to failed."
         detailed_status['backtrace'].should_not be_nil
-        detailed_status['payload'].should == { 'class' => FailingJob.name, 'args' => 0 }
+        detailed_status['payload'].should == { 'class' => FailingJob.name, 'args' => [0] }
       end
 
       it "should increment the number of failed jobs" do
