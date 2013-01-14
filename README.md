@@ -59,7 +59,7 @@ In the same config file you just have to add sidekiq-status and sidekiq-resque_s
 		  end
 		end	
 
-... And that's it, you're all set
+... And that's it, you're all set!
 
 ## Contributing
 
