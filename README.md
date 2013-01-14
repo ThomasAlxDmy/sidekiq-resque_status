@@ -18,7 +18,7 @@ Or install it yourself as:
 
 ## Usage
 
-# Personalize your worker:
+### Personalize your worker:
 
 To add Sidekiq worker to your resque web-ui you just need inherit your worker class with SidekiqWorkerWithStatus
 
@@ -28,7 +28,7 @@ To add Sidekiq worker to your resque web-ui you just need inherit your worker cl
 		  end
 		end 
 
-# Set up your Sidekiq connection base on your Resque one
+### Set up your Sidekiq connection base on your Resque one
 	
 In order for sidekiq-resque_status to work properly you need to tell sidekiq to use the same connection as Resque (same namespace, same url).
 You can do so by creating a config file (such as sidekiq_config.rb) and doing:
@@ -41,7 +41,9 @@ You can do so by creating a config file (such as sidekiq_config.rb) and doing:
 		  config.redis = { :namespace => Resque.redis.namespace, :url => url }
 		end	
 
-# Add the sidekiq-resque_status middleware to the Sidekiq server and client middleware
+### Configure Sidekiq server and client middleware
+
+In the same config file you just have to add sidekiq-status and sidekiq-resque_status to Sidekiq middleware.
 
 		Sidekiq.configure_server do |config|
 		  config.server_middleware do |chain|
@@ -56,6 +58,8 @@ You can do so by creating a config file (such as sidekiq_config.rb) and doing:
 		    chain.add Sidekiq::Middleware::Client::Stats::ResqueLike
 		  end
 		end	
+
+... And that's it, you're all set
 
 ## Contributing
 
