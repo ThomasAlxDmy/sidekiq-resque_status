@@ -1,6 +1,6 @@
 # Sidekiq::ResqueStatus
 
-Sidekiq-resque_status is a Sidekiq plug-in that will allow you to manage and check the progress of your resque jobs and sidekiq workers under the same place: the resque web-ui interface. Sidekiq and Resque are two different queuing system and depending on the type of jobs you have to process you might want to use one or the other. These two queuing system have their own web interface. This gem allow you, in case you are using both queuing system in one project, to group them under the resque web-ui. 
+Sidekiq-resque_status is a Sidekiq plug-in that allows to manage and check the progress of resque jobs and sidekiq workers at the same place: the resque web-ui interface. Sidekiq and Resque are two different queuing systems; Depending on the type of jobs you have to process you might want to use one or the other. These two queuing systems have their own web interface. In case you are using both queuing system in one project, you will end up having two complete different web interfaces for checking and managing the status of background jobs. This gem allows you to use only one web interface by grouping the Sidekiq workers statuses under the Resque web-ui. 
 
 ## Installation
 
@@ -20,7 +20,7 @@ Or install it yourself as:
 
 ### Personalize your worker:
 
-To add Sidekiq worker to your resque web-ui you just need inherit your worker class with SidekiqWorkerWithStatus
+To add Sidekiq worker to your resque web-ui you just need to inherit your worker class with SidekiqWorkerWithStatus
 
 		class SleepingJob < SidekiqWorkerWithStatus
 		  def perform(*args)
