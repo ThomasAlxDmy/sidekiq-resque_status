@@ -19,15 +19,17 @@ module Sidekiq
     def enqueue_job(worker, msg, queue)
       now = Time.now.utc + 1
 
-      # Resque Job Stats equivalent
-      increment_stat("stats:jobs:#{worker.name}:enqueued", now)        
-
       # Status set to queued
       status_hash = { :time => now.to_i, :class => worker.name, :retry => false, :name => "#{worker.name}(#{msg['args']})", :status => "queued", :uuid => msg['jid'], :args => msg['args']}
       update_status("status:#{msg['jid']}", "queued", status_hash)
 
-      # Add the job id to the _statuses key
-      redis.zadd("_statuses", now.to_i, msg['jid'])
+      redis.pipelined do
+        # Resque Job Stats equivalent
+        increment_stat("stats:jobs:#{worker.name}:enqueued", now)   
+
+        # Add the job id to the _statuses key
+        redis.zadd("_statuses", now.to_i, msg['jid'])
+      end
     end
 
     ###
@@ -65,16 +67,18 @@ module Sidekiq
       time = hash["time"] || hash["run_at"]
       now = time ? Time.at(time.to_i) : Time.now.utc
 
-      # Resque job Stats equivalent
-      increment_stat("stats:jobs:#{msg['jid']}:timeseries:performed", now)
-      increment_stat("stats:jobs:#{worker.class.name}:performed", now)
+      redis.pipelined do
+        # Resque job Stats equivalent
+        increment_stat("stats:jobs:#{msg['jid']}:timeseries:performed", now)
+        increment_stat("stats:jobs:#{worker.class.name}:performed", now)
 
-      # Set duration
-      redis.rpush("stats:jobs:#{worker.class.name}:duration", duration) 
-      redis.rpush("stats:jobs:#{msg['jid']}:duration", duration) 
+        # Set duration
+        redis.rpush("stats:jobs:#{worker.class.name}:duration", duration) 
+        redis.rpush("stats:jobs:#{msg['jid']}:duration", duration) 
 
-      # remove job from the queue tab
-      redis.lpop("queue:#{queue}")
+        # remove job from the queue tab
+        redis.lpop("queue:#{queue}")
+      end
     end
 
     ###
@@ -104,12 +108,15 @@ module Sidekiq
                           :args => args,
                           :jid => msg['jid']
                         }
-      # Push the failed information into redis
-      redis.rpush('failed', MultiJson.dump(failed_message))
 
-      # Increment failed statistics for job Stats 
-      increment_stat("stats:jobs:#{worker.class.name}:failed", Time.now)  
-      increment_expire_key("stat:failed")
+      redis.pipelined do
+        # Push the failed information into redis
+        redis.rpush('failed', MultiJson.dump(failed_message))
+
+        # Increment failed statistics for job Stats 
+        increment_stat("stats:jobs:#{worker.class.name}:failed", Time.now)  
+        increment_expire_key("stat:failed")
+      end
     end
 
     private
